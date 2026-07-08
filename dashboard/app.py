@@ -335,7 +335,7 @@ elif page == "Correlation Leaderboard":
             size="sample_size",
             color="sector",
             hover_name="ticker",
-            hover_date=["company_name", "sample_size"],
+            hover_data=["company_name", "sample_size"],
             labels={
                 "optimal_lag_days": "Optimal Lag (days)",
                 "optimal_lag_corr": "Correlation Strength (r)",
