@@ -186,7 +186,7 @@ jobs:
           report = run_collection_checks('2026-07-01')
           assert report.pipeline_ok, \
               f'Validation should pass with sufficient data: {report}'
-          print(f'Validation passed: {report.passed}/{report.total} checks')
+          print(f'Validation status: {report.pipeline_ok}')
           print('Validation gate test passed')
           "
 
