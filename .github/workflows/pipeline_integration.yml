@@ -176,7 +176,7 @@ jobs:
                   'source': 'google_news',
                   'source_id': f'test_{i}',
                   'title': f'Test headline {i}',
-                  'text': f'Test article text {i} about the company',
+                  'raw_text': f'Test article text {i} about the company',
                   'url': f'https://example.com/{i}',
                   'published_date': date(2026, 7, 1),
                   'collected_date': date(2026, 7, 1),
@@ -200,11 +200,11 @@ jobs:
           from config.config import is_market_holiday
 
           holidays_to_check = [
-              ('2026-09-14', True,  'Ganesh Chaturthi'),
-              ('2026-11-24', True,  'Diwali'),
+              ('2026-06-26', True,  'Muharram'),
+              ('2026-01-26', True,  'Republic Day'),
               ('2026-12-25', True,  'Christmas'),
-              ('2026-07-13', False, 'Normal Monday'),
-              ('2026-07-14', False, 'Normal Tuesday'),
+              ('2026-06-29', False, 'Normal Monday'),
+              ('2026-07-07', False, 'Normal Tuesday'),
           ]
 
           for date_str, expected_holiday, label in holidays_to_check:
