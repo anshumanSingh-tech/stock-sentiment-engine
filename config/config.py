@@ -67,7 +67,7 @@ NEWS_RSS_FEEDS = [
 
 NSE_HOLIDAYS_2026 = {
     "2026-09-14",
-    "2026-10-2",
+    "2026-10-02",
     "2026-10-20",
     "2026-11-10",
     "2026-11-24",
@@ -79,6 +79,7 @@ def is_market_holiday(date_str: str) -> bool:
     Returns if there's a market on holiday on the given dates.
     Does not check weekends.
     """
+    return date_str in NSE_HOLIDAYS_2026
 
 DATA_DIR = BASE_DIR / "data"
 RAW_MARKET_DIR = DATA_DIR / "raw" / "market"
