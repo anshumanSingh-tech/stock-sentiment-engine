@@ -184,9 +184,9 @@ jobs:
           insert_df('raw_sentiment', pd.DataFrame(sentiment_rows), mode='ignore')
 
           report = run_collection_checks('2026-07-01')
-          assert report['pipeline_ok'], \
+          assert report.pipeline_ok, \
               f'Validation should pass with sufficient data: {report}'
-          print(f'Validation passed: {report[\"passed\"]}/{report[\"total\"]} checks')
+          print(f'Validation passed: {report.passed}/{report.total} checks')
           print('Validation gate test passed')
           "
 
@@ -200,11 +200,11 @@ jobs:
           from config.config import is_market_holiday
 
           holidays_to_check = [
-              ('2026-06-26', True,  'Muharram'),
-              ('2026-01-26', True,  'Republic Day'),
+              ('2026-09-14', True,  'Ganesh Chaturthi'),
+              ('2026-11-24', True,  'Diwali'),
               ('2026-12-25', True,  'Christmas'),
-              ('2026-06-29', False, 'Normal Monday'),
-              ('2026-07-07', False, 'Normal Tuesday'),
+              ('2026-07-13', False, 'Normal Monday'),
+              ('2026-07-14', False, 'Normal Tuesday'),
           ]
 
           for date_str, expected_holiday, label in holidays_to_check:
