@@ -1,0 +1,53 @@
+name: Code Quality
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax-check:
+     name: Python Syntax & Import Check
+     runs-on: ubuntu-latest
+
+     steps:
+       - name: Checkout repository
+         uses: actions/checkout@v4
+
+       - name: Set up Python 3.13
+         uses: actions/setup-python@v5
+         with:
+            python-version: "3.13"
+
+       - name: Install minimal dependencies
+         run: |
+           pip install --upgrade pip
+           pip install duckdb pandas python-dotenv loguru
+
+       - name: Check syntax of all Python files
+         run: |
+           echo "Checking syntax of all .py files..."
+           find . -name "*.py" \
+             -not -path "./.venv/*" \
+             -not -path "./.*" \
+             | while read f; do
+               python -m py_compile "$f" && echo "OK: $f" || exit 1
+             done
+           echo "All files passed syntax check"
+
+       - name: Verify config module imports
+         run: |
+           python -c "
+           import sys
+           sys.path.insert(0, '.')
+           from config.config import (
+              TICKERS, is_market_holiday, NSE_HOLIDAYS_2026,
+              HF_DATASET_REPO, DUCKDB_PATH
+           )
+           print(f'Tickers loaded: {len(TICKERS)}')
+           print(f'Holidays loaded: {len(NSE_HOLIDAYS_2026)}')
+           assert len(TICKERS) == 25, F'Expected 25 tickers, got {len(TICKERS)}'
+           assert len(NSE_HOLIDAYS_2026) == 6, f'Expected 6 holidays, got {len(NSE_HOLIDAYS_2026)}'
+           print('Config validation passed')
+           "

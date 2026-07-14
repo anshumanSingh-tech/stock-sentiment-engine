@@ -1,0 +1,160 @@
+name: Schema Validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  schema-check:
+    name: DuckDB Schema Initialisation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install duckdb==1.5.3 pandas python-dotenv loguru
+
+      - name: Initialise database schema
+        run: |
+          python -c "
+          import sys, os
+          sys.path.insert(0, '.')
+
+          # Point to an in-memory database for this test
+          os.environ['DUCKDB_PATH'] = ':memory:'
+
+          from config.database import init_database, get_connection
+          init_database()
+          print('Schema initialised successfully')
+          "
+
+      - name: Verify all tables exist with correct columns
+        run: |
+          python -c "
+          import sys, os, duckdb
+          sys.path.insert(0, '.')
+          os.environ['DUCKDB_PATH'] = ':memory:'
+
+          from config.database import init_database
+          init_database()
+
+          conn = duckdb.connect(':memory:')
+
+          from config.database import get_connection
+          conn = get_connection()
+          init_database()
+
+          tables = [
+              'tickers', 'price_daily', 'raw_sentiment',
+              'sentiment_scored', 'daily_sentiment',
+              'sentiment_price_correlation'
+          ]
+          existing = conn.execute(
+              \"SELECT table_name FROM information_schema.tables \
+               WHERE table_schema='main'\"
+          ).fetchall()
+          existing_names = {r[0] for r in existing}
+
+          for t in tables:
+              assert t in existing_names, f'Table missing: {t}'
+              print(f'  TABLE exists: {t}')
+
+          critical_columns = {
+              'sentiment_price_correlation': [
+                  'corr_lag_0d',   
+                  'corr_lag_1d',
+                  'corr_lag_2d',
+                  'corr_lag_3d',
+                  'corr_lag_7d',  
+                  'sample_size',   
+                  'optimal_lag_corr',
+              ],
+              'daily_sentiment': [
+                  'google_news_mentions',    # not reddit_mentions
+                  'yahoo_finance_mentions',  # not twitter_mentions
+              ],
+              'raw_sentiment': ['id', 'ticker', 'source', 'text'],
+          }
+
+          for table, cols in critical_columns.items():
+              existing_cols = [
+                  r[0] for r in conn.execute(
+                      f\"SELECT column_name FROM information_schema.columns \
+                        WHERE table_name='{table}'\"
+                  ).fetchall()
+              ]
+              for col in cols:
+                  assert col in existing_cols, \
+                      f'Column {col} missing from {table}. ' \
+                      f'Existing: {existing_cols}'
+                  print(f'  COLUMN exists: {table}.{col}')
+
+          print('All schema checks passed')
+          "
+
+      - name: Verify analytical views work
+        run: |
+          python -c "
+          import sys, os
+          sys.path.insert(0, '.')
+          os.environ['DUCKDB_PATH'] = ':memory:'
+
+          from config.database import init_database, get_connection
+          init_database()
+          conn = get_connection()
+
+          views = [
+              'vw_sentiment_price',
+              'vw_latest_correlations',
+              'vw_sector_sentiment',
+          ]
+          for v in views:
+              try:
+                  result = conn.execute(f'SELECT COUNT(*) FROM {v}').fetchone()
+                  print(f'  VIEW queryable: {v} ({result[0]} rows)')
+              except Exception as e:
+                  raise AssertionError(f'View {v} failed: {e}')
+
+          print('All views passed')
+          "
+
+      - name: Verify insert_df replace logic
+        run: |
+          python -c "
+          import sys, os, pandas as pd
+          sys.path.insert(0, '.')
+          os.environ['DUCKDB_PATH'] = ':memory:'
+
+          from config.database import init_database, insert_df, query_df
+          init_database()
+
+          df = pd.DataFrame([{
+              'ticker': 'TEST',
+              'company_name': 'Test Company',
+              'sector': 'IT',
+              'industry': 'Software',
+              'nse_symbol': 'TEST.NS',
+              'keywords': 'test',
+          }])
+          insert_df('tickers', df, mode='ignore')
+
+          result = query_df(\"SELECT COUNT(*) as n FROM tickers WHERE ticker='TEST'\")
+          assert result['n'].iloc[0] == 1, 'Insert failed'
+
+          insert_df('tickers', df, mode='ignore')
+          result = query_df(\"SELECT COUNT(*) as n FROM tickers WHERE ticker='TEST'\")
+          assert result['n'].iloc[0] == 1, 'Duplicate insert should have been ignored'
+
+          print('insert_df idempotency check passed')
+          "
