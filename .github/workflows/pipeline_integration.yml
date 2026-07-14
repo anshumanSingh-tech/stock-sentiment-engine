@@ -11,7 +11,7 @@ jobs:
 
     env:
       DUCKDB_PATH: ":memory:"
-      LOG_LEVEL: WARNING   
+      LOG_LEVEL: WARNING
 
     steps:
       - name: Checkout repository
@@ -26,14 +26,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
       - name: Install pipeline dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements
+          pip install -r requirements.txt
 
       - name: Test market collector pct_change fix
         run: |
@@ -44,7 +44,6 @@ jobs:
 
           from collectors.market_collector import process_ticker_df
 
-          # Test 1: Single row should warn but not crash
           df_single = pd.DataFrame([{
               'date': pd.Timestamp('2026-06-29'),
               'open': 1308.0, 'high': 1313.7,
@@ -52,10 +51,8 @@ jobs:
               'volume': 13757656,
           }])
           result = process_ticker_df(df_single, 'RELIANCE')
-          # Single row loses pct_change - expected, not a crash
           print(f'Single row result: {len(result)} rows (expected 0 - NaN dropped)')
 
-          # Test 2: Two rows should produce one valid output row
           df_two = pd.DataFrame([
               {'date': pd.Timestamp('2026-06-25'), 'open': 1290.0,
                'high': 1300.0, 'low': 1285.0, 'close': 1295.0, 'volume': 10000000},
@@ -73,7 +70,7 @@ jobs:
       - name: Test FinBERT scorer
         run: |
           python -c "
-          import sys, os, pandas as pd
+          import sys, os
           sys.path.insert(0, '.')
           os.environ['DUCKDB_PATH'] = ':memory:'
 
@@ -82,8 +79,8 @@ jobs:
 
           init_database()
 
-          # Five representative financial sentences - mix of
-          # positive, negative, and neutral
+          load_finbert()
+
           test_texts = [
               'Reliance Industries reports record quarterly profit beating analyst estimates',
               'HDFC Bank shares fall sharply after RBI imposes restrictions',
@@ -92,29 +89,25 @@ jobs:
               'Infosys maintains full-year guidance after Q2 results',
           ]
           expected_sentiment = [
-              'positive',   # record profit
-              'negative',   # shares fall, restrictions
-              'positive',   # new hires
-              'negative',   # drops, sell-off
-              'neutral',    # maintains guidance
+              'positive',
+              'negative',
+              'positive',
+              'negative',
+              'neutral',
           ]
 
-          tokenizer, model = load_finbert()
-          scores = score_texts(test_texts, tokenizer, model)
+          scores = score_texts(test_texts)
 
           assert len(scores) == 5, f'Expected 5 scores, got {len(scores)}'
 
           for i, (score, expected) in enumerate(zip(scores, expected_sentiment)):
-              # Every score must be in [-1, +1]
               assert -1 <= score['compound_score'] <= 1, \
                   f'compound_score out of range: {score[\"compound_score\"]}'
 
-              # Probabilities must sum to ~1.0 (floating point tolerance)
               prob_sum = score['score_positive'] + score['score_negative'] + score['score_neutral']
               assert abs(prob_sum - 1.0) < 0.01, \
                   f'Probabilities do not sum to 1: {prob_sum}'
 
-              # Determine predicted sentiment from scores
               if score['score_positive'] > score['score_negative'] and \
                  score['score_positive'] > score['score_neutral']:
                   predicted = 'positive'
@@ -124,11 +117,11 @@ jobs:
               else:
                   predicted = 'neutral'
 
-              match = '✓' if predicted == expected else '?'
+              match = 'OK' if predicted == expected else 'MISMATCH'
               print(
                   f'{match} [{expected:8s}|{predicted:8s}] '
                   f'compound={score[\"compound_score\"]:+.3f} | '
-                  f'{test_texts[i][:50]}...'
+                  f'{test_texts[i][:50]}'
               )
 
           print('FinBERT scorer test passed')
@@ -161,7 +154,7 @@ jobs:
           sys.path.insert(0, '.')
           from config.config import TICKERS
           price_rows = []
-          for ticker in TICKERS[:22]:  # 22 tickers - above the 20 threshold
+          for ticker in TICKERS[:22]:
               price_rows.append({
                   'ticker': ticker,
                   'trade_date': date(2026, 7, 1),
